@@ -1,0 +1,8 @@
+2025-03-11 23:21:27,444 - INFO - HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2025-03-11 23:21:28,424 - INFO - HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2025-03-11 23:22:12,285 - INFO - HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+2025-03-11 23:22:12,286 - INFO - Assistant: I'd be happy to help you with your inquiry. Can I assist you with making a reservation, checking the availability of our restaurant, or something else? 
+
+Please let me know how I can best support you tonight! 
+Tastes of Brazil is open late and we're serving delicious Brazilian cuisine.
+If you have any specific requests or questions about our menu, please feel free to ask.
