@@ -22,8 +22,8 @@ BOOK = generate_reservations()
 
 
 @tool
-def list_empty_slots(date: str) -> dict:
-    """Return available time slots for reservations
+def list_time_slots(date: str) -> dict:
+    """Return time slots for reservations
 
     Args:
         date (str): date to return the slots. Format YYYY-mm-dd

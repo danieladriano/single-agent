@@ -11,23 +11,27 @@ from langgraph.utils.runnable import RunnableCallable
 from typing_extensions import TypedDict
 
 from llm_models import SupportedLLMs, get_llm
-from reservations import book_table, cancel_reservation, list_empty_slots
+from reservations import book_table, cancel_reservation, list_time_slots
 
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
 
 
-class Chatbot:
+class Agent:
     def __init__(self, llm: BaseChatModel) -> None:
         self._llm = llm
 
     @property
     def _prompt(self) -> RunnableCallable:
         content = f""" You are a helpfull restaurant assistant responsible for reservations.
-                    1. Choose your action using the tools that are available to you
-                    2. If there is no tool to call with the user request, ask for more context about what the usar want
-                    3. Elaborate a response to the user
+
+                    You need to follow this rules:
+                    1. Choose your action using the tools that are available to you.
+                    2. If there is no tool to call with the user request, ask for more context about what the user want.
+                    3. Always elaborate a complete response to the user.
+                    4. Never reference our tools to the user
+                    5. Don't make up any rules for cancellation or scheduling
                                                 
                     Name of the restaurant: Tastes of Brazil
                     Current Date: {datetime.now()}
@@ -35,7 +39,7 @@ class Chatbot:
         system_message = SystemMessage(content=content)
         return RunnableCallable(lambda state: [system_message] + state, name="Prompt")
 
-    def should_continue(self, state: State) -> str:
+    def conditional_router(self, state: State) -> str:
         messages = state["messages"]
         last_message = messages[-1]
         if last_message.tool_calls:
@@ -44,24 +48,24 @@ class Chatbot:
 
     def call_model(self, state: State) -> State:
         assistant_runnable = self._prompt | self._llm.bind_tools(
-            [list_empty_slots, book_table, cancel_reservation]
+            [list_time_slots, book_table, cancel_reservation]
         )
         response = assistant_runnable.invoke(state["messages"])
         return {"messages": [response]}
 
     def build_agent(self) -> CompiledStateGraph:
         graph_builder = StateGraph(state_schema=State)
-        graph_builder.add_node(node="agent", action=self.call_model)
+        graph_builder.add_node(node="call_model", action=self.call_model)
         graph_builder.add_node(
             node="tools",
-            action=ToolNode([list_empty_slots, book_table, cancel_reservation]),
+            action=ToolNode([list_time_slots, book_table, cancel_reservation]),
         )
 
-        graph_builder.add_edge(start_key=START, end_key="agent")
+        graph_builder.add_edge(start_key=START, end_key="call_model")
         graph_builder.add_conditional_edges(
-            "agent", self.should_continue, ["tools", END]
+            source="call_model", path=self.conditional_router, path_map=["tools", END]
         )
-        graph_builder.add_edge(start_key="tools", end_key="agent")
+        graph_builder.add_edge(start_key="tools", end_key="call_model")
 
         return graph_builder.compile()
 
@@ -74,7 +78,7 @@ def stream_graph_updates(graph: CompiledStateGraph, user_input: str) -> None:
 
 def main() -> None:
     llm = get_llm(llm_model=SupportedLLMs.llama3_1)
-    chatbot = Chatbot(llm=llm)
+    chatbot = Agent(llm=llm)
     graph = chatbot.build_agent()
 
     print("Assistant: Welcome to Tastes of Brazil! How can I help you today?")
