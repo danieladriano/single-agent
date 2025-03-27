@@ -1,11 +1,9 @@
-from typing import List
-
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 
 
 @tool
-def validate_user(user_id: int, addresses: List[str]) -> bool:
+def validate_user(user_id: int, addresses: list[str]) -> bool:
     """Validate user using historical addresses.
 
     Args:

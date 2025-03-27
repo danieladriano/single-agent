@@ -1,8 +1,12 @@
+import uuid
 from datetime import datetime
-from typing import Annotated, Optional
+from typing import Annotated
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import SystemMessage
+from langchain_core.runnables.config import RunnableConfig
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.graph.state import CompiledStateGraph
@@ -12,10 +16,6 @@ from typing_extensions import TypedDict
 
 from llm_models import SupportedLLMs, get_llm
 from reservations import book_table, cancel_reservation, list_time_slots
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.checkpoint.base import BaseCheckpointSaver
-import uuid
-from langchain_core.runnables.config import RunnableConfig
 
 
 class State(TypedDict):
@@ -28,11 +28,13 @@ class Agent:
 
     @property
     def _prompt(self) -> RunnableCallable:
-        content = f""" You are a helpfull restaurant assistant responsible for reservations.
+        content = f""" You are a helpfull restaurant assistant responsible for
+                       reservations.
 
                     You need to follow this rules:
                     1. Choose your action using the tools that are available to you.
-                    2. If there is no tool to call with the user request, ask for more context about what the user want.
+                    2. If there is no tool to call with the user request,
+                       ask for more context about what the user want.
                     3. Always elaborate a complete response to the user.
                     4. Never reference our tools to the user
                     5. Don't make up any rules for cancellation or scheduling
@@ -58,7 +60,7 @@ class Agent:
         return {"messages": [response]}
 
     def build_agent(
-        self, checkpointer: Optional[BaseCheckpointSaver] = None
+        self, checkpointer: BaseCheckpointSaver | None = None
     ) -> CompiledStateGraph:
         graph_builder = StateGraph(state_schema=State)
         graph_builder.add_node(node="call_model", action=self.call_model)
