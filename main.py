@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Optional
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import SystemMessage
@@ -12,6 +12,10 @@ from typing_extensions import TypedDict
 
 from llm_models import SupportedLLMs, get_llm
 from reservations import book_table, cancel_reservation, list_time_slots
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
+import uuid
+from langchain_core.runnables.config import RunnableConfig
 
 
 class State(TypedDict):
@@ -32,7 +36,7 @@ class Agent:
                     3. Always elaborate a complete response to the user.
                     4. Never reference our tools to the user
                     5. Don't make up any rules for cancellation or scheduling
-                                                
+
                     Name of the restaurant: Tastes of Brazil
                     Current Date: {datetime.now()}
                     """
@@ -53,7 +57,9 @@ class Agent:
         response = assistant_runnable.invoke(state["messages"])
         return {"messages": [response]}
 
-    def build_agent(self) -> CompiledStateGraph:
+    def build_agent(
+        self, checkpointer: Optional[BaseCheckpointSaver] = None
+    ) -> CompiledStateGraph:
         graph_builder = StateGraph(state_schema=State)
         graph_builder.add_node(node="call_model", action=self.call_model)
         graph_builder.add_node(
@@ -67,19 +73,25 @@ class Agent:
         )
         graph_builder.add_edge(start_key="tools", end_key="call_model")
 
-        return graph_builder.compile()
+        return graph_builder.compile(checkpointer=checkpointer)
 
 
-def stream_graph_updates(graph: CompiledStateGraph, user_input: str) -> None:
+def stream_graph_updates(
+    graph: CompiledStateGraph, config: RunnableConfig, user_input: str
+) -> None:
     messages = {"messages": [("user", user_input)]}
-    events = graph.invoke(messages, stream_mode="values")
-    print(f"Assistant: {events['messages'][-1].content}")
+    events = graph.invoke(input=messages, config=config, stream_mode="values")
+    # print(f"Assistant: {events['messages'][-1].content}")
+    events["messages"][-1].pretty_print()
 
 
 def main() -> None:
     llm = get_llm(llm_model=SupportedLLMs.llama3_1)
+    checkpointer = MemorySaver()
     chatbot = Agent(llm=llm)
-    graph = chatbot.build_agent()
+    graph = chatbot.build_agent(checkpointer=checkpointer)
+
+    config = RunnableConfig(configurable={"thread_id": uuid.uuid4()})
 
     print("Assistant: Welcome to Tastes of Brazil! How can I help you today?")
     while True:
@@ -89,7 +101,7 @@ def main() -> None:
                 print("Goodbye!")
                 break
 
-            stream_graph_updates(graph=graph, user_input=user_input)
+            stream_graph_updates(graph=graph, config=config, user_input=user_input)
         except Exception as e:
             print(f"Error {e}")
 
